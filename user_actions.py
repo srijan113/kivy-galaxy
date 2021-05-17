@@ -26,4 +26,3 @@ def on_touch_down(self, touch):
 
 def on_touch_up(self, touch):
     self.current_speed_x = 0
-    return True
