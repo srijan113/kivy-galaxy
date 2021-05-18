@@ -1,3 +1,5 @@
+from logging import setLoggerClass
+from random import randrange
 from kivy.config import Config
 
 Config.set('graphics', 'width', '1400')
@@ -22,25 +24,25 @@ class MainWidget(Widget):
     perspective_point_y = NumericProperty(0)
     
 
-    V_NB_LINES = 10
-    V_LINES_SPACING = .25
+    V_NB_LINES = 8
+    V_LINES_SPACING = .2
     vertical_lines = []
 
-    H_NB_LINES = 15
-    H_LINES_SPACING = .15
+    H_NB_LINES = 8
+    H_LINES_SPACING = .1
     horizontal_lines = []
 
-    SPEED = 3
+    SPEED = 2
     current_offset_y = 0
     current_y_loop = 0
 
 
-    SPEED_X = 15
+    SPEED_X = 12
     current_speed_x = 0
     current_offset_x = 0
 
 
-    NB_TILES = 8
+    NB_TILES = 10
     tiles = []
     tiles_coordinates = []
 
@@ -74,8 +76,22 @@ class MainWidget(Widget):
     
 
     def generate_tiles_cordinated(self):
-        for i in range(0, self.NB_TILES):
-            self.tiles_coordinates.append((0,i))
+
+        last_y = 0
+
+        for i in range(len(self.tiles_coordinates)-1, -1, -1):
+            if self.tiles_coordinates[i][1] < self.current_y_loop:
+                del self.tiles_coordinates[i]
+
+        if len(self.tiles_coordinates):
+            last_coodrinate = self.tiles_coordinates[-1]
+            last_y = last_coodrinate[1] + 1
+
+
+        for i in range(len(self.tiles_coordinates), self.NB_TILES):
+            self.tiles_coordinates.append((0,last_y))
+            last_y += 1
+
 
 
     def init_vertical_lines(self):
@@ -166,6 +182,7 @@ class MainWidget(Widget):
         if self.current_offset_y >= spacing_y:
             self.current_offset_y -= spacing_y
             self.current_y_loop += 1
+            self.generate_tiles_cordinated()
         
 
 
