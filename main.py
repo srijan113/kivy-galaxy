@@ -1,5 +1,3 @@
-from logging import setLoggerClass
-from random import randrange
 from kivy.config import Config
 
 Config.set('graphics', 'width', '1400')
@@ -10,18 +8,31 @@ from kivy.base import runTouchApp
 from kivy.uix.widget import Widget
 from kivy import platform
 from kivy.core.window import Window
+from kivy.core.audio import SoundLoader
+from kivy.uix.relativelayout import RelativeLayout
+from kivy.lang import Builder
 from kivy.properties import Clock
-from kivy.properties import NumericProperty
+from kivy.properties import NumericProperty, ObjectProperty, StringProperty
 from kivy.graphics.context_instructions import Color
-from kivy.graphics.vertex_instructions import Line, Quad
+from kivy.graphics.vertex_instructions import Line, Quad, Triangle
+import random
 
 
-class MainWidget(Widget):
+Builder.load_file("menu.kv")
+
+
+class MainWidget(RelativeLayout):
     from transforms import transform, transform_2D, transform_perspective
     from user_actions import on_keyboard_down, on_keyboard_up, on_touch_down, keyboard_closed, on_touch_up
 
+    menu_widget = ObjectProperty()
+    
     perspective_point_x = NumericProperty(0)
     perspective_point_y = NumericProperty(0)
+
+    menu_title = StringProperty("G      A       L       A       X       Y")
+    menu_button_title = StringProperty("START")
+    score_txt = StringProperty("0")
     
 
     V_NB_LINES = 8
@@ -32,27 +43,49 @@ class MainWidget(Widget):
     H_LINES_SPACING = .1
     horizontal_lines = []
 
-    SPEED = 2
+    SPEED = .5
     current_offset_y = 0
     current_y_loop = 0
 
 
-    SPEED_X = 12
+    SPEED_X = 2
     current_speed_x = 0
     current_offset_x = 0
 
 
-    NB_TILES = 10
+    NB_TILES = 16
     tiles = []
     tiles_coordinates = []
+
+
+    SHIP_WIDTH = .08
+    SHIP_HEIGHT = 0.030
+    SHIP_BASE_Y = 0.03
+    ship = None
+    ship_coordinate = [(0,0), (0,0), (0,0)]
+
+
+    state_game_over = False
+    state_game_start = False
+
+
+    sound_begin = None
+    sound_begin = None
+    sound_galaxy = None 
+    sound_gameover_impact = None
+    sound_voice = None
+    sound_music1 = None 
+    sound_restart = None
 
     def __init__(self, **kwargs):
         super(MainWidget, self).__init__(**kwargs)
         # print("INIT W: " + str(self.width), str(self.height))
+        self.init_audio()
         self.init_vertical_lines()
         self.init_horizontal_lines()
         self.init_tiles()
-        self.generate_tiles_cordinated()    
+        self.init_ship()
+        self.reset_game() 
 
         if self.is_desktop():
             self._keyboard = Window.request_keyboard(self.keyboard_closed, self)
@@ -62,11 +95,88 @@ class MainWidget(Widget):
 
         Clock.schedule_interval(self.update, 1.0/60.0)
 
+        self.sound_galaxy.play()
+
     
+    def init_audio(self):
+        self.sound_begin = SoundLoader.load("RESOURCES/audio/begin.wav")
+        self.sound_galaxy = SoundLoader.load("RESOURCES/audio/galaxy.wav")
+        self.sound_gameover_impact = SoundLoader.load("RESOURCES/audio/gameover_impact.wav")
+        self.sound_voice = SoundLoader.load("RESOURCES/audio/gameover_voice.wav")
+        self.sound_music1 = SoundLoader.load("RESOURCES/audio/music1.wav")
+        self.sound_restart = SoundLoader.load("RESOURCES/audio/restart.wav")
+
+        self.sound_music1.volume = 1
+        self.sound_begin.volume = .25
+        self.sound_galaxy.volume = .25
+        self.sound_gameover_impact.volume = .50
+        self.sound_voice.volume = .30
+        self.sound_restart.volume = .25
+
+    
+    def reset_game(self):
+
+        self.current_offset_y = 0
+        self.current_y_loop = 0
+        self.current_speed_x = 0
+        self.current_offset_x = 0
+
+        self.tiles_coordinates = []
+        self.score_txt = "SCORE: " + str(self.current_y_loop)
+        self.pre_fill_tiles_coordinates()
+        self.generate_tiles_cordinated()
+
+        self.state_game_over = False
+
+
     def is_desktop(self):
         if platform in ('linux', 'win', 'macosx'):
             return True
         return False
+
+    def init_ship(self):
+        with self.canvas:
+            Color(0,0,0)
+            self.ship = Triangle()
+
+    def update_ship(self):
+        center_x = self.width/2
+        base_y = self.SHIP_BASE_Y * self.height
+        ship_half_width = self.SHIP_WIDTH * self.width / 2
+        ship_height = self.SHIP_HEIGHT * self.height
+
+        self.ship_coordinate[0] = (center_x - ship_half_width, base_y)
+        self.ship_coordinate[1] = (center_x, base_y+ship_height)
+        self.ship_coordinate[2] = (center_x + ship_half_width, base_y)
+        
+
+
+
+        x1, y1 = self.transform(*self.ship_coordinate[0])
+        x2, y2 = self.transform(*self.ship_coordinate[1])
+        x3, y3 = self.transform(*self.ship_coordinate[2])
+
+        self.ship.points = [x1, y1, x2, y2, x3, y3]
+
+    
+    def check_ship_collision(self):
+        for i in range(0,len(self.tiles_coordinates)):
+            ti_x, ti_y = self.tiles_coordinates[i]
+            if ti_y > self.current_y_loop + 1:
+                return False
+            if self.check_ship_collision_with_tile(ti_x,ti_y):
+                return True
+        return False
+
+    def check_ship_collision_with_tile(self, ti_x, ti_y):
+        xmin, ymin = self.get_tile_coordinate(ti_x, ti_y)
+        xmax, ymax = self.get_tile_coordinate(ti_x+1, ti_y+1)
+        for i in range(0,3):
+            px, py = self.ship_coordinate[i]
+            if xmin <= px <= xmax and ymin <= py <=ymax:
+                return True
+        return False
+
 
     def init_tiles(self):
         with self.canvas:
@@ -75,8 +185,15 @@ class MainWidget(Widget):
                 self.tiles.append(Quad())
     
 
+    def pre_fill_tiles_coordinates(self):
+        for i in range(0,5):
+            self.tiles_coordinates.append((0,i))
+
+
+
     def generate_tiles_cordinated(self):
 
+        last_x = 0
         last_y = 0
 
         for i in range(len(self.tiles_coordinates)-1, -1, -1):
@@ -85,11 +202,35 @@ class MainWidget(Widget):
 
         if len(self.tiles_coordinates):
             last_coodrinate = self.tiles_coordinates[-1]
+            last_x = last_coodrinate[0]
             last_y = last_coodrinate[1] + 1
 
 
         for i in range(len(self.tiles_coordinates), self.NB_TILES):
-            self.tiles_coordinates.append((0,last_y))
+            r = random.randint(0,2)
+
+            start_index = -int(self.V_NB_LINES/2)+1
+            end_index = start_index+self.V_NB_LINES-1 
+
+            if last_x <= start_index:
+                r=1 
+            if last_x >= end_index: 
+                r=2
+
+            self.tiles_coordinates.append((last_x,last_y))
+            
+            if r == 1:
+                last_x += 1
+                self.tiles_coordinates.append((last_x, last_y))
+                last_y += 1
+                self.tiles_coordinates.append((last_x, last_y))
+
+            if r == 2:
+                last_x -= 1
+                self.tiles_coordinates.append((last_x, last_y))
+                last_y += 1
+                self.tiles_coordinates.append((last_x, last_y))
+
             last_y += 1
 
 
@@ -150,6 +291,7 @@ class MainWidget(Widget):
             x2, y2 = self.transform(line_x, self.height)
             self.vertical_lines[i].points = [x1, y1, x2, y2]
 
+
     def init_horizontal_lines(self):
         with self.canvas:
             Color(1,1,1)
@@ -175,19 +317,50 @@ class MainWidget(Widget):
         self.update_vertical_lines()
         self.update_horizontal_lines()
         self.update_tiles()
+        self.update_ship()
+
+        if not self.state_game_over and self.state_game_start:
+            speed_y = self.SPEED * self.height/100
+            self.current_offset_y += speed_y*time_factor
+
+            spacing_y = self.H_LINES_SPACING*self.height
+            while self.current_offset_y >= spacing_y:
+                self.current_offset_y -= spacing_y
+                self.current_y_loop += 1
+                self.score_txt = "SCORE: " + str(self.current_y_loop)
+                self.generate_tiles_cordinated()
+            
 
 
-        self.current_offset_y += self.SPEED*time_factor
-        spacing_y = self.H_LINES_SPACING*self.height
-        if self.current_offset_y >= spacing_y:
-            self.current_offset_y -= spacing_y
-            self.current_y_loop += 1
-            self.generate_tiles_cordinated()
-        
+            speed_x = self.current_speed_x * self.width/100
+            self.current_offset_x += speed_x*time_factor
+
+        if not self.check_ship_collision() and not self.state_game_over:
+            self.state_game_over = True
+            self.menu_title = "G    A   M   E           O   V   E   R"
+            self.menu_button_title = "RESTART"
+            self.menu_widget.opacity = 1
+            self.sound_music1.stop()
+            self.sound_gameover_impact.play()
+            self.sound_voice.play()
+            Clock.schedule_once(self.play_game_over_voice_sound, 3)
+            print("Over")
+
+    def play_game_over_voice_sound(self, dt):
+        if self.state_game_over:
+            self.sound_voice.play()
 
 
 
-        self.current_offset_x += self.current_speed_x*time_factor
+    def on_menu_button_press(self):
+        if self.state_game_over:
+            self.sound_restart.play()
+        else:
+            self.sound_begin.play()
+        self.sound_music1.play()
+        self.reset_game()
+        self.state_game_start = True
+        self.menu_widget.opacity = 0
 
 
 
