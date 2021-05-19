@@ -21,8 +21,12 @@ For to work in your device:
 
 How to run ?
 
+Recomendation: Create a venv first then follow this steps
+
 ```
 git clone <repo>
+
+pip install -r requirements.txt
 
 cd kivy-galaxy/
 
