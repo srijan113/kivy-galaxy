@@ -39,7 +39,7 @@ Audio can or cannot run on some devices if it works or doesn't on any devices do
 I have included the anroid apk file inside: <br>
 ```kivy-galaxy/bin/myship-1.0-armeabi-v7a-debug.apk```
 
-#### If you want to learn making this project then <a href="https://www.youtube.com/watch?v=l8Imtec4ReQ">click here</a>
+#### If you want to learn kivy and start making this project then <a href="https://www.youtube.com/watch?v=l8Imtec4ReQ">click here</a>
 
 
 JUST_A_BEGINNER
